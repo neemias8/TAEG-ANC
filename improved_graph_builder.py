@@ -16,25 +16,38 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from data_loader import ChronologyLoader, BiblicalDataLoader
 
 
+import pickle
+import os
+
 class ImprovedTemporalGraphBuilder:
     """Builder for temporal graphs with separate nodes for each gospel version."""
 
-    def __init__(self):
+    def __init__(self, cache_dir: str = "outputs"):
         """Initialize the improved graph builder."""
         self.chrono_loader = ChronologyLoader()
         self.biblical_loader = BiblicalDataLoader()
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(exist_ok=True, parents=True)
+        self.cache_file = self.cache_dir / "taeg_graph_cache.pkl"
 
-    def build_improved_temporal_graph(self) -> Dict[str, Any]:
+    def build_improved_temporal_graph(self, use_cache: bool = True) -> Dict[str, Any]:
         """
         Build temporal graph with separate nodes for each gospel version of events.
-
-        Node structure:
-        - event_{id}_{gospel} for gospel-specific versions
-        - event_{id}_combined for multi-gospel events (when needed)
+        
+        Args:
+            use_cache: If True, try to load from cache first.
 
         Returns:
             Dictionary representing the improved temporal graph
         """
+        if use_cache and self.cache_file.exists():
+            print(f"📦 Loading cached graph from {self.cache_file}...")
+            try:
+                with open(self.cache_file, 'rb') as f:
+                    return pickle.load(f)
+            except Exception as e:
+                print(f"⚠️ Failed to load cache: {e}. Rebuilding...")
+
         print("🔍 Loading chronology data...")
         events = self.chrono_loader.load_chronology()
         print(f"✅ Loaded {len(events)} chronological events")
@@ -106,15 +119,24 @@ class ImprovedTemporalGraphBuilder:
         # Print detailed statistics
         self._print_improved_graph_statistics(graph)
 
+        # Save to cache
+        try:
+            with open(self.cache_file, 'wb') as f:
+                pickle.dump(graph, f)
+            print(f"💾 Graph saved to cache: {self.cache_file}")
+        except Exception as e:
+            print(f"⚠️ Could not save to cache: {e}")
+
         return graph
 
     def _extract_specific_verses(self, gospel: str, reference: str) -> str:
         """
         Extract specific verses from a gospel based on reference.
+        Handles 'a'/'b' suffixes by splitting on strong punctuation.
 
         Args:
             gospel: Gospel name ('matthew', 'mark', 'luke', 'john')
-            reference: Reference string like "26:6-13" or "12:1-8"
+            reference: Reference string like "26:6-13", "20:1a", "24:5-6a"
 
         Returns:
             Extracted verse text
@@ -127,13 +149,31 @@ class ImprovedTemporalGraphBuilder:
             chapter_part, verse_part = reference.split(':', 1)
             chapter_num = int(chapter_part)
 
+            start_suffix = ""
+            end_suffix = ""
+
             # Parse verse range
             if '-' in verse_part:
-                start_verse, end_verse = verse_part.split('-', 1)
-                start_verse = int(start_verse)
-                end_verse = int(end_verse)
+                start_verse_str, end_verse_str = verse_part.split('-', 1)
+                
+                # Extract suffixes if present
+                if start_verse_str[-1].isalpha():
+                    start_suffix = start_verse_str[-1].lower()
+                    start_verse = int(re.sub(r'[^\d]', '', start_verse_str))
+                else:
+                    start_verse = int(re.sub(r'[^\d]', '', start_verse_str))
+                    
+                if end_verse_str[-1].isalpha():
+                    end_suffix = end_verse_str[-1].lower()
+                    end_verse = int(re.sub(r'[^\d]', '', end_verse_str))
+                else:
+                    end_verse = int(re.sub(r'[^\d]', '', end_verse_str))
             else:
-                start_verse = end_verse = int(verse_part)
+                # Single verse or verse part
+                clean_verse = re.sub(r'[^\d]', '', verse_part)
+                start_verse = end_verse = int(clean_verse)
+                if verse_part[-1].isalpha():
+                    start_suffix = end_suffix = verse_part[-1].lower()
 
             # Load gospel XML
             gospels_map = {
@@ -143,7 +183,7 @@ class ImprovedTemporalGraphBuilder:
                 'john': 'EnglishNIVJohn43_PW.xml'
             }
 
-            xml_file = Path("data") / gospels_map[gospel]
+            xml_file = Path("data") / gospels_map[gospel.lower()]
             if not xml_file.exists():
                 return ""
 
@@ -162,7 +202,18 @@ class ImprovedTemporalGraphBuilder:
                             try:
                                 v_num = int(verse_num)
                                 if start_verse <= v_num <= end_verse:
-                                    verses_text.append(verse.text.strip())
+                                    text = verse.text.strip()
+                                    
+                                    # Apply suffix logic for start verse
+                                    if v_num == start_verse and start_suffix:
+                                        text = self._apply_verse_suffix(text, start_suffix)
+                                        
+                                    # Apply suffix logic for end verse (if different or if range)
+                                    if v_num == end_verse and end_suffix and start_verse != end_verse:
+                                        text = self._apply_verse_suffix(text, end_suffix)
+
+                                    if text:
+                                        verses_text.append(text)
                             except ValueError:
                                 continue
 
@@ -173,6 +224,87 @@ class ImprovedTemporalGraphBuilder:
             return ""
 
         return ""
+
+    def _apply_verse_suffix(self, text: str, suffix: str) -> str:
+        """
+        Split text based on suffix 'a' (first part) or 'b' (second part).
+        Finds the split point closest to the middle of the text.
+        """
+        # Candidate separators: strong punctuation or ", and "
+        # We look for indices of these separators
+        separators = [";", ":", ".", "?", "!", ", and "]
+        
+        best_split_idx = -1
+        min_dist_to_center = float('inf')
+        center = len(text) / 2
+        split_len = 0
+        
+        for sep in separators:
+            # Find all occurrences of this separator
+            start = 0
+            while True:
+                idx = text.find(sep, start)
+                if idx == -1:
+                    break
+                
+                # Calculate distance to center
+                # We consider the split point to be AFTER the separator for clean cutting
+                # "Clause A; Clause B" -> split at index of ';' + 1
+                dist = abs(idx - center)
+                
+                if dist < min_dist_to_center:
+                    min_dist_to_center = dist
+                    best_split_idx = idx
+                    split_len = len(sep)
+                
+                start = idx + 1
+
+        # If no separator found or text is too short, return full text
+        if best_split_idx == -1:
+            # Fallback: simple comma split closest to center
+            # Text: "Early on ... dark, Mary ..."
+            idx = text.find(", ", 0)
+            while idx != -1:
+                dist = abs(idx - center)
+                if dist < min_dist_to_center:
+                    min_dist_to_center = dist
+                    best_split_idx = idx
+                    split_len = 2 # length of ", "
+                idx = text.find(", ", idx + 1)
+        
+        if best_split_idx == -1:
+            return text
+            
+        # Split logic
+        # For ", and " or ", " we typically want to remove the connector from the end of A
+        # or keep it at start of B? 
+        # Actually, usually "Clause A, and Clause B":
+        # Part A = "Clause A"
+        # Part B = "and Clause B" -> logic says 'b' usually keeps the connector if any
+        # But if separator is ; or . we keep it in A.
+        
+        sep_used = text[best_split_idx:best_split_idx + split_len]
+        
+        if sep_used.strip() == "," or "and" in sep_used:
+             # Separator is likely ", " or ", and "
+             # Part A: everything before
+             # Part B: separator (?) + everything after
+             part_a = text[:best_split_idx].strip()
+             # Optionally include "and" in B if desired, or exclude separator entirely
+             part_b = text[best_split_idx + split_len:].strip()
+             if "and" in sep_used:
+                 part_b = "and " + part_b
+        else:
+            # Strong punctuation (., ; etc) -> Keep with A
+            part_a = text[:best_split_idx + split_len].strip()
+            part_b = text[best_split_idx + split_len:].strip()
+        
+        if suffix == 'a':
+            return part_a
+        elif suffix == 'b':
+            return part_b
+            
+        return text
 
     def _create_before_edges(self, graph: Dict[str, Any], events: List[Dict]):
         """Create BEFORE edges between consecutive events."""

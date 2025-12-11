@@ -1,228 +1,123 @@
+# TAEG-ANC: Temporal Anchoring Event Graph for Abstractive Narrative Consolidation
 
-# **Narrative Consolidation: Formulating a New Task for Unifying Multi-Perspective Accounts**
+## Overview
 
+**TAEG-ANC** is a Multi-Document Summarization (MDS) framework designed to consolidate multiple gospel narratives (Matthew, Mark, Luke, John) into a single, cohesive chronological summary. 
 
-This repository contains the official implementation and resources for the paper **"Narrative Consolidation: Formulating a New Task for Unifying Multi-Perspective Accounts"**, currently under review for the LREC 2026 conference.
+Unlike traditional methods that simply concatenate texts or use extractive ranking, TAEG-ANC employs a **Temporal Anchoring Event Graph (TAEG)** to align events across different documents chronologically. It then applies both Extractive and Abstractive summarization strategies to these aligned events to produce a final narrative.
 
-## **Abstract**
+This repository includes implementations for:
+- **Graph Construction**: Intelligent parsing and linking of gospel verses.
+- **Extractive Summarization**: LexRank.
+- **Abstractive Summarization**: BART, PEGASUS, and PRIMERA.
 
-Processing overlapping narrative documents, such as legal testimonies or historical accounts, often aims not for compression but for a unified, coherent, and chronologically sound text. Standard Multi-Document Summarization (MDS), with its focus on conciseness, fails to preserve narrative flow. This paper formally defines this challenge as a new NLP task: **Narrative Consolidation**, where the central objectives are chronological integrity, completeness, and the fusion of complementary details. To demonstrate the critical role of temporal structure in this task, we introduce **Temporal Alignment Event Graph (TAEG)**, a graph structure that explicitly models chronology and event alignment. By applying a standard centrality algorithm to TAEG, our method functions as a version selection mechanism, choosing the most central representation of each event in its correct temporal position. In a study on the four Biblical Gospels, this structure-focused approach guarantees perfect temporal ordering (Kendall's Tau of 1.000) by design and dramatically improves content metrics (e.g., +357.2% in ROUGE-L F1). The success of this baseline method validates the formulation of Narrative Consolidation as a relevant task and establishes that an explicit temporal backbone is a fundamental component for its resolution.
+## The Challenge: Narrative Consolidation vs. Summarization
 
+A key distinction of this project is its focus on **Narrative Consolidation** rather than traditional Multi-Document Summarization (MDS).
 
-## **The Core Problem: Summarization vs. Narrative Consolidation**
+Standard MDS algorithms are typically designed for **brevity** and **conciseness** (e.g., generating a short news headline from multiple articles). They explicitly try to remove redundancy and shorten the text.
 
-The central premise of this work is a fundamental reframing of how we process multiple, overlapping narrative documents. The goal is not to make the story shorter, but to make it **whole**.
+**Narrative Consolidation**, however, opposes this goal. In domains such as **Biblical Harmonization** or **Criminal Witness Testimonies**, the objectives are:
+1.  **Completeness**: Preserving unique details from *every* source. If Witness A saw a red car and Witness B saw the license plate, the consolidation must include *both*.
+2.  **Detail**: Retaining the richness of the original text rather than compressing it.
+3.  **Temporal Fluidity**: Ensuring the combined story flows logically and chronologically, rather than being a disjointed collection of facts.
 
-Traditional Multi-Document Summarization (MDS) is defined by its focus on **conciseness**. However, in contexts like a criminal investigation with multiple witness testimonies or a historical analysis of overlapping accounts like the Biblical Gospels, the primary objective is to produce a single, unified, and chronologically sound narrative. The final text must eliminate redundancy while integrating crucial details from all sources into a cohesive whole.
+TAEG-ANC addresses this by using the Temporal Graph to "anchor" events, allowing the system to "zip" multiple perspectives into a single, high-resolution narrative stream, prioritizing **recall** and **coherence** over compression.
 
-Classic graph-based algorithms like LexRank are fundamentally mismatched for this task. By optimizing for semantic centrality, they inherently ignore the chronological flow of the narrative, resulting in a collection of salient but temporally disordered facts.
+## Methodology
 
-This project advocates for a paradigm shift from summarization to **Narrative Consolidation**, where coherence, completeness, and temporal integrity are prioritized over brevity.
+The core innovation is the **Temporal Graph**, which breaks down the four gospels into discrete "events" anchored in a timeline.
 
-## **Temporal Alignment Event Graph (TAEG)**
+1.  **Graph Construction**: 
+    - Vertices represent specific events in specific gospels (e.g., "The Baptism of Jesus" in Matthew).
+    - Edges represent temporal relationships (`BEFORE`, `SAME_EVENT`).
+    - The graph is built using heuristics and specific verse references.
 
-As a narrative consolidation experiment, we introduce the **Temporal Alignment Event Graph (TAEG)**, a structure that prioritizes temporal order and event alignment over simple semantic similarity.
+2.  **Consolidation**:
+    - **TAEG-Guided**: The system traverses the chronological list of events. For each event, it gathers all relevant texts (e.g., Matthew 3 + Mark 1 + Luke 3) and generates a local summary using the chosen strategy. These local summaries are then concatenated to form the global narrative.
+    - **Pure Global (Baseline)**: All texts are concatenated into one massive document and fed to the summarizer (truncated to model limits).
 
-Unlike standard methods that infer structure from textual similarity, the TAEG's construction is driven by external knowledge—a pre-defined, canonical chronology of events that serves as a structural backbone.
+## Strategies & Models
 
-### **TAEG Architecture**
+The system implements the **Strategy Pattern** for easy switching between summarization methods:
 
-The TAEG is a multi-relational graph designed to separate the challenges of chronological ordering and version selection:
+### Extractive
+- **LexRank-TA**: A graph-based ranking algorithm that selects the most salient sentences from the inputs.
+  > **Note**: LexRank runs via the legacy `run_taeg.py` script to preserve the original extractive algorithm logic.
 
-* **Nodes**: A distinct node is created for each *version* of a canonical event. For example, if an event is described in Matthew, Mark, and Luke, three separate nodes are created for that single event.1  
-* **Edges**: The graph contains two functionally distinct types of edges:  
-  1. **Temporal Edges (BEFORE)**: *Directed* edges that connect nodes representing sequential events *within the same source document*. These edges form the known chronological backbone of each narrative.  
-  2. **Anchoral Edges (SAME\_EVENT)**: *Undirected* edges that interconnect all nodes (versions) that refer to the *same canonical event*, creating a cluster for each event in the timeline.1
+### Abstractive
+- **BART** (`facebook/bart-large-cnn`): Excellent for coherent rewriting of short-to-medium length contexts.
+- **PEGASUS** (`google/pegasus-multi_news`): Specifically fine-tuned for multi-document summarization.
+- **PRIMERA** (`allenai/PRIMERA`): A model designed for efficient long-document MDS usage (pyramid-based pre-training).
 
-This dual-edge architecture decouples the two primary challenges: BEFORE edges solve the sequencing problem, while SAME\_EVENT edges isolate the version selection problem.
+> **Note**: All models are configured to run on **CPU**.
 
-## **Methodology & Results**
+## Installation
 
-We used the exact same centrality algorithm, LexRank, for both the standard baseline and our TAEG-based system. The only variable was the underlying graph structure. When applied to the TAEG, LexRank is repurposed into a **version selection engine**.
+1.  **Clone the repository**.
+2.  **Create a virtual environment**:
+    ```powershell
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    ```
+3.  **Install dependencies**:
+    ```powershell
+    pip install -r requirements.txt
+    pip install -r requirements_abstractive.txt
+    ```
 
-The results are definitive. The TAEG-based approach is not just incrementally better; it represents a categorical improvement, guaranteeing perfect temporal coherence *by design*.
+## Usage
 
-| Metric | Baseline (Standard LexRank) | TAEG-LexRank | Improvement |
-| :---- | :---- | :---- | :---- |
-| ROUGE-1 F1 | 0.887 | 0.958 | \+8.0% |
-| ROUGE-2 F1 | 0.712 | 0.938 | \+31.7% |
-| ROUGE-L F1 | 0.207 | 0.947 | **\+357.2%** |
-| BERTScore F1 | 0.835 | 0.995 | \+19.1% |
-| METEOR | 0.453 | 0.639 | \+41.0% |
-| Kendall's Tau | 0.320 | **1.000** | \+212.5% |
+### 1. Run Complete Experiment (Recommended)
+To run all methods (LexRank, BART, PEGASUS, PRIMERA) in both TAEG-Guided and Pure modes, and generate a comparison table:
 
-The perfect Kendall's Tau score is an architectural property of the TAEG, not a learned outcome. This perfect ordering is the direct cause of the massive **\+357.2% improvement in ROUGE-L**, which measures the longest common subsequence.
-
-### **Conciseness vs. Consolidation Analysis**
-
-The results for the standard LexRank baseline in the table above reflect a parameter setting of 750 sentences. To prove that the TAEG's superiority is structural and not a matter of parameter tuning, the table below shows the baseline's performance across various summary lengths.
-
-| Method | ROUGE-1 F1 | ROUGE-2 F1 | ROUGE-L F1 | BERTScore F1 | METEOR | Kendall's Tau | Length (chars) |
-| :---- | :---- | :---- | :---- | :---- | :---- | :---- | :---- |
-| **LexRank Baseline** |  |  |  |  |  |  |  |
-| *100 sentences* | 0.296 | 0.263 | 0.129 | 0.835 | 0.097 | 0.268 | 14,710 |
-| *500 sentences* | 0.804 | 0.655 | 0.206 | 0.835 | 0.361 | 0.305 | 59,408 |
-| *1000 sentences* | 0.862 | 0.728 | 0.199 | 0.835 | 0.483 | 0.320 | 100,770 |
-| *1500 sentences* | 0.784 | 0.733 | 0.188 | 0.835 | 0.484 | 0.320 | 128,930 |
-| **TAEG-LexRank** | **0.958** | **0.938** | **0.947** | **0.995** | **0.639** | **1.000** | **79,154** |
-
-This analysis clearly demonstrates that simply increasing the number of sentences does not address the fundamental problem of narrative coherence. While some metrics improve up to a point, the temporal coherence (Kendall's Tau) remains consistently low. Even at its peak performance, the standard LexRank approach fails to come close to the quality and temporal integrity of the TAEG-based method. This reinforces our central argument: for long and complex narratives, **comprehensive coverage and chronological soundness are far more critical than mere conciseness**.
-
-## **The Gospel Consolidation Language Resource**
-
-To facilitate this research, we have developed and publicly released the **Gospel Consolidation Language Resource**. The dataset comprises the English New International Version (NIV, 2011\) texts of the four Gospels, mapped to 169 canonical events from the Holy Week, and a high-quality, manually created reference consolidation (the "Golden Sample").
-
-### **Language and Version Agnostic Format**
-
-A crucial design choice was the use of a 'book:chapter:verse' system for alignment. This decouples the chronological structure from any specific translation or language. This means other researchers can easily apply our framework to the Gospels in different languages or biblical versions (e.g., KJV, ESV) without recreating the temporal alignment from scratch.
-
-The system is designed to parse any XML file where book, chapter, and verse identifiers are clearly tagged as attributes. As long as the verse references can be parsed, the TAEG can align them regardless of the specific XML schema or textual content.
-
-For example, consider Matthew 21:1 from two different versions in a simple XML format:
-
-**NIV (New International Version) XML:**
-
-XML
-
-\<bible version\="NIV"\>  
-  \<book name\="Matthew"\>  
-    \<chapter number\="21"\>  
-      \<verse number\="1"\>As they approached Jerusalem and came to Bethphage on the Mount of Olives, Jesus sent two disciples,\</verse\>  
-    \</chapter\>  
-  \</book\>  
-\</bible\>
-
-**KJV (King James Version) XML:**
-
-XML
-
-\<bible version\="KJV"\>  
-  \<book name\="Matthew"\>  
-    \<chapter number\="21"\>  
-      \<verse number\="1"\>And when they drew nigh unto Jerusalem, and were come to Bethphage, unto the mount of Olives, then sent Jesus two disciples,\</verse\>  
-    \</chapter\>  
-  \</book\>  
-\</bible\>
-
-Our system aligns both passages to the same canonical event by parsing the attributes book name="Matthew", chapter number="21", and verse number="1", making the framework highly adaptable and reusable across different XML-formatted biblical texts.
-
-## **Getting Started**
-
-### **Installation**
-
-To set up the environment and install the required dependencies, follow these steps:
-
-Bash
-
-\# Clone the repository  
-git clone https://github.com/neemias8/TAEG.git  
-cd TAEG
-
-\# Install dependencies  
-pip install \-r requirements.txt
-
-### **Usage**
-
-To run the narrative consolidation process and replicate the paper's core findings, use the following command:
-
-Bash
-
-\# Run the consolidation using the TAEG-LexRank method  
-python main.py \--method taeg \--output consolidated\_narrative.txt
-
-## �🚀 Usage Examples
-
-### Basic Usage
-```bash
-# Standard LEXRANK (semantic quality)
-python src/main.py
-
-# LEXRANK-TA (temporal order)
-python src/main.py --summarization-method lexrank-ta --summary-length 1
+```powershell
+python run_complete_experiment.py
 ```
 
-### Generated Files
+This script handles:
+- Graph construction (and caching).
+- Automated execution of all summarizers.
+- Evaluation using ROUGE (Token overlap), METEOR (Semantic match), BERTScore (Neural similarity), and Kendall's Tau (Temporal ordering).
+- Comparison results saved to `outputs/comparison_results.csv`.
 
-Each method creates specific files in the `outputs/` folder:
+### 2. Run Individual Components
 
-- **LEXRANK**: 
-  - `evaluation/LEXRANK_results.json` - Evaluation metrics
+**TAEG-Guided Summarization**:
+```powershell
+python run_taeg_abstractive.py --method bart
+# Options: bart, pegasus, primera
+```
 
-- **LEXRANK-TA**:
-  - `evaluation/LEXRANK-TA_results.json` - Evaluation metrics
+**Pure (Global) Summarization**:
+```powershell
+python run_pure_abstractive.py --method pegasus
+```
 
-### Method Comparison
-```bash
+**Evaluation**:
+```powershell
 python compare_methods.py
 ```
 
-### Advanced Usage
-```bash
-# LEXRANK with 800 sentences (very detailed)
-python src/main.py --summarization-method lexrank --summary-length 800
+## Project Structure
 
-# LEXRANK-TA with 1 sentence per event (optimal temporal preservation)
-python src/main.py --summarization-method lexrank-ta --summary-length 1
+```
+TAEG-ANC/
+├── src/
+│   ├── consolidators.py       # Strategy pattern implementations (Models)
+│   ├── main.py                # Legacy pipeline entry point
+│   ├── summarizer.py          # Legacy LexRank logic
+│   ├── evaluator.py           # Metrics (ROUGE, METEOR, etc.)
+│   └── data_loader.py         # Gospel text loading logic
+├── data/                      # XML chronology and gospel texts
+├── outputs/                   # Generated summaries and reports
+├── improved_graph_builder.py  # Core graph construction logic
+├── run_complete_experiment.py # Master orchestration script
+├── run_taeg_abstractive.py    # TAEG-based runner
+├── run_pure_abstractive.py    # Baseline runner
+├── compare_methods.py         # Evaluation script
+└── requirements_abstractive.txt
 ```
 
-## Evaluation Metrics
-
-### ROUGE
-- **ROUGE-1**: Unigram overlap
-- **ROUGE-2**: Bigram overlap
-- **ROUGE-L**: Longest Common Subsequence
-
-### METEOR
-Word alignment-based metric with synonymy and stemming.
-
-### BERTScore
-BERT embedding-based metric for semantic similarity.
-
-### Kendall's Tau
-Ranking correlation between sentence order in generated summary and reference text. Values range from -1 (perfect disagreement) to +1 (perfect agreement). Recently validated to correctly distinguish temporal preservation:
-- LEXRANK: 0.320 (partial temporal disorder)
-- LEXRANK-TA: 1.000 (perfect temporal order)
-
-## 🔧 Recent Validation
-
-### Kendall's Tau Metric Validation
-The temporal evaluation metric has been thoroughly validated:
-- **Debug Implementation**: Added position tracking for events in reference and hypothesis texts
-- **Correct Behavior Confirmed**: 
-  - Non-temporal methods (LEXRANK) show realistic partial disorder (τ = 0.320)
-  - Temporal-anchored methods (LEXRANK-TA) achieve perfect order (τ = 1.000)
-- **Event Matching**: Uses keyword overlap detection with NLTK sentence tokenization
-- **Result**: System accurately evaluates temporal preservation differences between summarization approaches
-
-## Dependencies
-
-- `beautifulsoup4`: XML/HTML processing
-- `lxml`: Efficient XML parser
-- `lexrank`: LEXRANK algorithm
-- `nltk`: Natural language processing
-- `rouge-score`: ROUGE metrics
-- `bert-score`: BERTScore metric
-- `transformers`: Language models
-- `torch`: Deep learning framework
-- `scipy`: Scientific computing
-- `pandas`: Data manipulation
-- `numpy`: Numerical computing
-
-
-## Contribution
-
-To contribute to the project:
-
-1. Fork the repository
-2. Create a branch for your feature
-3. Implement your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-This project is distributed under the MIT license. See the LICENSE file for more details.
-
-## Contact
-
-For questions or suggestions, contact the development team.
+## Authors
+[Your Name/Team] - [University/Institution]

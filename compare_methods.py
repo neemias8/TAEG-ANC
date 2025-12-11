@@ -1,180 +1,111 @@
 #!/usr/bin/env python3
 """
-Comparison script for LEXRANK vs LEXRANK-TA methods
+Unified Comparison Script.
+Evaluates all generated summaries (Extractive & Abstractive) against the Golden Sample.
 """
 
 import sys
 from pathlib import Path
+import pandas as pd
+import os
 
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from main import TAEGPipeline
+from data_loader import BiblicalDataLoader
+from evaluator import SummarizationEvaluator
 
 def compare_methods():
-    """Compare LEXRANK vs LEXRANK-TA methods."""
-    print("TAEG - Method Comparison: LEXRANK vs LEXRANK-TA")
+    print("TAEG - Unified Method Evaluation")
     print("="*80)
+    
+    # 1. Load Golden Sample
+    loader = BiblicalDataLoader("data")
+    try:
+        golden_sample = loader.load_golden_sample()
+        print(f"Loaded Golden Sample ({len(golden_sample)} chars)")
+    except Exception as e:
+        print(f"Error loading golden sample: {e}")
+        return
 
-    methods = [
-        ("lexrank", 750, "LEXRANK (750 sentences total)"),
-        ("lexrank-ta", 1, "LEXRANK-TA (optimized temporal anchoring)")
-    ]
-
-    results = {}
-
-    for method, length, description in methods:
-        print(f"\nTesting: {description}")
-        print(f"Configuration: method={method}, length={length}")
-        print("-"*60)
-
-        # Create a fresh pipeline instance for each test
-        pipeline = TAEGPipeline()
-        result = pipeline.run_pipeline(summary_length=length, summarization_method=method)
-
-        if "error" in result:
-            print(f"ERROR with {method}: {result['error']}")
-            continue
-
-        # Extract key metrics
-        rouge_f1 = result["evaluation"]["rouge"]["rouge1"]["f1"]
-        rouge2_f1 = result["evaluation"]["rouge"]["rouge2"]["f1"]
-        rougeL_f1 = result["evaluation"]["rouge"]["rougeL"]["f1"]
-        bert_f1 = result["evaluation"]["bertscore"]["f1"]
-        meteor = result["evaluation"]["meteor"]
-        kendall_tau = result["evaluation"]["kendall_tau"]
-
-        # Store results with unique key including parameters
-        result_key = f"{method}_{length}"
-        results[result_key] = {
-            "method": method,
-            "length": length,
-            "description": description,
-            "summary_length_chars": len(result["consolidated_summary"]),
-            "summary_sentences": result["consolidated_summary"].count('.'),
-            "rouge1_f1": rouge_f1,
-            "rouge2_f1": rouge2_f1,
-            "rougeL_f1": rougeL_f1,
-            "bertscore_f1": bert_f1,
-            "meteor": meteor,
-            "kendall_tau": kendall_tau,
-            "summary_preview": result["consolidated_summary"][:150] + "...",
-            "summary_hash": hash(result["consolidated_summary"])
-        }
-
-        print(f"Length: {len(result['consolidated_summary'])} characters")
-        print(f"Sentences: ~{result['consolidated_summary'].count('.')} sentences")
-        print(f"ROUGE-1 F1: {rouge_f1:.3f}")
-        print(f"ROUGE-2 F1: {rouge2_f1:.3f}")
-        print(f"ROUGE-L F1: {rougeL_f1:.3f}")
-        print(f"BERTScore F1: {bert_f1:.3f}")
-        print(f"METEOR: {meteor:.3f}")
-        print(f"Kendall's Tau: {kendall_tau:.3f}")
-        print(f"Summary Hash: {results[result_key]['summary_hash']}")
-        print(f"Preview: {results[result_key]['summary_preview']}")
-
-    # Summary comparison
-    print("\n" + "="*80)
-    print("COMPARISON SUMMARY")
-    print("="*80)
-
-    # Find lexrank and lexrank-ta results
-    lexrank_key = next((k for k in results.keys() if k.startswith("lexrank_")), None)
-    ta_key = next((k for k in results.keys() if k.startswith("lexrank-ta_")), None)
-
-    if lexrank_key and ta_key and len(results) == 2:
-        lexrank_result = results[lexrank_key]
-        ta_result = results[ta_key]
-
-        print(f"\nConfigurations tested:")
-        print(f"  LEXRANK:     {lexrank_result['method']} (length={lexrank_result['length']})")
-        print(f"  LEXRANK-TA:  {ta_result['method']} (length={ta_result['length']})")
-
-        print(f"\nSummary verification:")
-        print(f"  LEXRANK Hash:     {lexrank_result['summary_hash']}")
-        print(f"  LEXRANK-TA Hash:  {ta_result['summary_hash']}")
+    evaluator = SummarizationEvaluator()
+    
+    # 2. Define files to evaluate
+    output_dir = Path("outputs")
+    files_to_eval = [
+        # Extractive
+        ("TAEG-LexRank", output_dir / "taeg_summary_lexrank.txt"),
+        ("TAEG-LexRank-TA", output_dir / "taeg_summary_lexrank-ta.txt"),
         
-        if lexrank_result['summary_hash'] == ta_result['summary_hash']:
-            print("  WARNING: Summaries are identical! Possible caching issue.")
-        else:
-            print("  OK: Summaries are different.")
-
-        print(f"\nROUGE-1 F1:")
-        print(f"  LEXRANK:     {lexrank_result['rouge1_f1']:.3f}")
-        print(f"  LEXRANK-TA:  {ta_result['rouge1_f1']:.3f}")
-        diff_rouge1 = ta_result['rouge1_f1'] - lexrank_result['rouge1_f1']
-        pct_rouge1 = (diff_rouge1 / lexrank_result['rouge1_f1']) * 100 if lexrank_result['rouge1_f1'] != 0 else 0
-        print(f"  Difference:  {diff_rouge1:+.3f} ({pct_rouge1:+.1f}%)")
-
-        print(f"\nROUGE-2 F1:")
-        print(f"  LEXRANK:     {lexrank_result['rouge2_f1']:.3f}")
-        print(f"  LEXRANK-TA:  {ta_result['rouge2_f1']:.3f}")
-        diff_rouge2 = ta_result['rouge2_f1'] - lexrank_result['rouge2_f1']
-        pct_rouge2 = (diff_rouge2 / lexrank_result['rouge2_f1']) * 100 if lexrank_result['rouge2_f1'] != 0 else 0
-        print(f"  Difference:  {diff_rouge2:+.3f} ({pct_rouge2:+.1f}%)")
-
-        print(f"\nROUGE-L F1:")
-        print(f"  LEXRANK:     {lexrank_result['rougeL_f1']:.3f}")
-        print(f"  LEXRANK-TA:  {ta_result['rougeL_f1']:.3f}")
-        diff_rougeL = ta_result['rougeL_f1'] - lexrank_result['rougeL_f1']
-        pct_rougeL = (diff_rougeL / lexrank_result['rougeL_f1']) * 100 if lexrank_result['rougeL_f1'] != 0 else 0
-        print(f"  Difference:  {diff_rougeL:+.3f} ({pct_rougeL:+.1f}%)")
-
-        print(f"\nBERTScore F1:")
-        print(f"  LEXRANK:     {lexrank_result['bertscore_f1']:.3f}")
-        print(f"  LEXRANK-TA:  {ta_result['bertscore_f1']:.3f}")
-        diff_bert = ta_result['bertscore_f1'] - lexrank_result['bertscore_f1']
-        pct_bert = (diff_bert / lexrank_result['bertscore_f1']) * 100 if lexrank_result['bertscore_f1'] != 0 else 0
-        print(f"  Difference:  {diff_bert:+.3f} ({pct_bert:+.1f}%)")
-
-        print(f"\nMETEOR:")
-        print(f"  LEXRANK:     {lexrank_result['meteor']:.3f}")
-        print(f"  LEXRANK-TA:  {ta_result['meteor']:.3f}")
-        diff_meteor = ta_result['meteor'] - lexrank_result['meteor']
-        pct_meteor = (diff_meteor / lexrank_result['meteor']) * 100 if lexrank_result['meteor'] != 0 else 0
-        print(f"  Difference:  {diff_meteor:+.3f} ({pct_meteor:+.1f}%)")
-
-        print(f"\nKendall's Tau (temporal order):")
-        print(f"  LEXRANK:     {lexrank_result['kendall_tau']:.3f}")
-        print(f"  LEXRANK-TA:  {ta_result['kendall_tau']:.3f}")
-        diff_kendall = ta_result['kendall_tau'] - lexrank_result['kendall_tau']
-        pct_kendall = (diff_kendall / abs(lexrank_result['kendall_tau'])) * 100 if lexrank_result['kendall_tau'] != 0 else 0
-        print(f"  Difference:  {diff_kendall:+.3f} ({pct_kendall:+.1f}%)")
-
-        print(f"\nSummary length:")
-        print(f"  LEXRANK:     {lexrank_result['summary_length_chars']} chars, {lexrank_result['summary_sentences']} sentences")
-        print(f"  LEXRANK-TA:  {ta_result['summary_length_chars']} chars, {ta_result['summary_sentences']} sentences")
-
-        # Analysis
-        print(f"\nANALYSIS:")
-        if abs(ta_result['kendall_tau']) > abs(lexrank_result['kendall_tau']):
-            print("  LEXRANK-TA has better temporal preservation!")
-        else:
-            print("  LEXRANK still has better temporal order")
-
-        if ta_result['rouge1_f1'] > lexrank_result['rouge1_f1']:
-            print("  LEXRANK-TA has better semantic quality (ROUGE-1)!")
-        else:
-            print("  LEXRANK has better semantic quality (ROUGE-1)")
-
-        if ta_result['rouge2_f1'] > lexrank_result['rouge2_f1']:
-            print("  LEXRANK-TA has better semantic quality (ROUGE-2)!")
-        else:
-            print("  LEXRANK has better semantic quality (ROUGE-2)")
-
-        if ta_result['rougeL_f1'] > lexrank_result['rougeL_f1']:
-            print("  LEXRANK-TA has better semantic quality (ROUGE-L)!")
-        else:
-            print("  LEXRANK has better semantic quality (ROUGE-L)")
-
-        if ta_result['bertscore_f1'] > lexrank_result['bertscore_f1']:
-            print("  LEXRANK-TA has better semantic quality (BERT)!")
-        else:
-            print("  LEXRANK has better semantic quality (BERT)")
-
+        # Abstractive TAEG
+        ("TAEG-BART", output_dir / "taeg_bart.txt"),
+        ("TAEG-PEGASUS", output_dir / "taeg_pegasus.txt"),
+        ("TAEG-PRIMERA", output_dir / "taeg_primera.txt"),
+        
+        # Abstractive Pure
+        ("Pure-BART", output_dir / "pure_bart.txt"),
+        ("Pure-PEGASUS", output_dir / "pure_pegasus.txt"),
+        ("Pure-PRIMERA", output_dir / "pure_primera.txt"),
+    ]
+    
+    results = []
+    
+    for method_name, file_path in files_to_eval:
+        if not file_path.exists():
+            print(f"⚠️ Skipping {method_name}: File not found ({file_path})")
+            continue
+            
+        print(f"\nEvaluating {method_name}...")
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                summary_text = f.read()
+                
+            if not summary_text:
+                print("  Empty file")
+                continue
+                
+            # Determine if method is time-aware (TAEG or LexRank-TA)
+            # This affects Kendall's Tau calculation (needs chronological chunks)
+            is_temporal = "TAEG" in method_name or "TA" in method_name
+            
+            metrics = evaluator.evaluate_summary(summary_text, golden_sample, is_temporal_anchored=is_temporal)
+            
+            # Flatten metrics for table
+            res = {
+                "Method": method_name,
+                "Length (chars)": len(summary_text),
+                "ROUGE-1": metrics["rouge"]["rouge1"]["f1"],
+                "ROUGE-2": metrics["rouge"]["rouge2"]["f1"],
+                "ROUGE-L": metrics["rouge"]["rougeL"]["f1"],
+                "BERTScore": metrics["bertscore"]["f1"],
+                "METEOR": metrics["meteor"],
+                "Kendall Tau": metrics["kendall_tau"]
+            }
+            results.append(res)
+            print("  ✅ Done")
+            
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
+            
+    # 3. Print Comparison Table
+    if results:
+        df = pd.DataFrame(results)
+        # Format floats
+        float_cols = ["ROUGE-1", "ROUGE-2", "ROUGE-L", "BERTScore", "METEOR", "Kendall Tau"]
+        for col in float_cols:
+            df[col] = df[col].apply(lambda x: f"{x:.4f}")
+            
+        print("\n" + "="*80)
+        print("FINAL RESULTS TABLE")
+        print("="*80)
+        print(df.to_string(index=False))
+        
+        # Save to CSV
+        csv_path = output_dir / "comparison_results.csv"
+        df.to_csv(csv_path, index=False)
+        print(f"\nSaved table to {csv_path}")
     else:
-        print("ERROR: Cannot compare - insufficient results")
-        print(f"Available results: {list(results.keys())}")
+        print("\nNo results to show.")
 
 if __name__ == "__main__":
     compare_methods()
