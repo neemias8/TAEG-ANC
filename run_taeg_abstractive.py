@@ -115,6 +115,14 @@ def main():
         # Ensure it ends with punctuation
         if s[-1] not in {'.', '!', '?', '"', "'"}:
             s += "."
+        # Fix spacing after punctuation (e.g. "Priest.But")
+        import re
+        s = re.sub(r'([.!?])([A-Z])', r'\1 \2', s)
+        # Fix double punctuation
+        s = s.replace('..', '.').replace('!!', '!').replace('??', '?')
+        # Fix quote spacing if needed (e.g. me?"") - simplify slightly
+        s = s.replace('""', '"')
+        
         clean_summaries.append(s)
         
     final_text = "\n".join(clean_summaries)

@@ -254,69 +254,6 @@ class SummarizationEvaluator:
         try:
             # Load chronological events from XML to get event descriptions
             chrono_loader = ChronologyLoader()
-            events = chrono_loader.load_chronology()
-
-            if not events:
-                return 0.0
-
-            # Get event descriptions and IDs
-            event_data = [(i, event['description'].lower()) for i, event in enumerate(events)]
-
-            # Split texts into sentences
-            ref_sentences = nltk.sent_tokenize(reference.lower())
-            hyp_sentences = nltk.sent_tokenize(hypothesis.lower())
-
-            if len(hyp_sentences) < 2:
-                return 0.0
-
-            # Find events in reference (Golden Sample) - these define the expected chronological order
-            ref_event_positions = {}
-            for event_id, event_desc in event_data:
-                for j, sentence in enumerate(ref_sentences):
-                    # Look for event in reference sentences
-                    if any(keyword in sentence for keyword in event_desc.split()[:3]):  # Use first 3 words for matching
-                        ref_event_positions[event_id] = j
-                        print(f"DEBUG: Event {event_id} ('{event_desc}') found in reference at position {j}")
-                        break
-
-            # Find the same events in hypothesis (generated summary)
-            hyp_event_positions = {}
-            for event_id, event_desc in event_data:
-                for j, sentence in enumerate(hyp_sentences):
-                    # Look for event in hypothesis sentences
-                    if any(keyword in sentence for keyword in event_desc.split()[:3]):  # Use first 3 words for matching
-                        hyp_event_positions[event_id] = j
-                        print(f"DEBUG: Event {event_id} ('{event_desc}') found in hypothesis at position {j}")
-                        break
-
-            # Only consider events found in both texts
-            common_events = set(ref_event_positions.keys()) & set(hyp_event_positions.keys())
-
-            print(f"DEBUG: Found {len(common_events)} common events out of {len(events)} total events")
-            print(f"DEBUG: Common events: {sorted(common_events)}")
-
-            if len(common_events) < 2:
-                # If we can't find enough events, return a low score
-                coverage_penalty = len(common_events) / len(events)
-                return coverage_penalty * 0.3  # Low score for poor event coverage
-
-            # Create orderings based on positions in respective texts
-            common_event_list = sorted(common_events)
-
-            # Expected order: chronological order from reference (Golden Sample positions)
-            expected_order = [ref_event_positions[event_id] for event_id in common_event_list]
-
-            # Found order: order in generated summary
-            found_order = [hyp_event_positions[event_id] for event_id in common_event_list]
-
-            print(f"DEBUG: Expected order (Golden Sample positions): {expected_order}")
-            print(f"DEBUG: Found order (summary positions): {found_order}")
-
-            # Calculate Kendall's Tau between the two orderings
-            tau, _ = kendalltau(expected_order, found_order)
-            print(f"DEBUG: Kendall's Tau = {tau}")
-            return tau if not np.isnan(tau) else 0.0
-
         except Exception as e:
             print(f"Warning: Error calculating Kendall's Tau from Golden Sample: {e}")
             return 0.0

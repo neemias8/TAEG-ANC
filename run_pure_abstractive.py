@@ -15,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from data_loader import BiblicalDataLoader
 from consolidators import (
-    LexRankConsolidator, 
     BartConsolidator, 
     PegasusConsolidator, 
     PrimeraConsolidator,
@@ -24,9 +23,7 @@ from consolidators import (
 
 def get_consolidator(method: str) -> BaseConsolidator:
     method = method.lower()
-    if method == "lexrank":
-        return LexRankConsolidator(summary_length=20) # Larger summary for full text
-    elif method == "bart":
+    if method == "bart":
         return BartConsolidator()
     elif method == "pegasus":
         return PegasusConsolidator()
@@ -37,7 +34,7 @@ def get_consolidator(method: str) -> BaseConsolidator:
 
 def main():
     parser = argparse.ArgumentParser(description="Pure Abstractive Summarization (Baseline)")
-    parser.add_argument("--method", choices=["lexrank", "bart", "pegasus", "primera"], required=True, help="Summarization model")
+    parser.add_argument("--method", choices=["bart", "pegasus", "primera"], required=True, help="Summarization model")
     parser.add_argument("--output-dir", default="outputs", help="Output directory")
     args = parser.parse_args()
 
