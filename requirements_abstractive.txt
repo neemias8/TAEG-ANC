@@ -1,4 +1,7 @@
-transformers
-torch
+transfopytorch_lightning
+absl-py
+rouge_score
+nltk
+requestsorch
 sentencepiece
 protobuf

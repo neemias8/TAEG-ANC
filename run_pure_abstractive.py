@@ -18,6 +18,7 @@ from consolidators import (
     BartConsolidator, 
     PegasusConsolidator, 
     PrimeraConsolidator,
+    GemmaOllamaConsolidator,
     BaseConsolidator
 )
 
@@ -35,12 +36,14 @@ def get_consolidator(method: str) -> BaseConsolidator:
         return PegasusConsolidator(**LIMITS)
     elif method == "primera":
         return PrimeraConsolidator(**LIMITS) # PRIMERA can handle it
+    elif method == "gemma":
+        return GemmaOllamaConsolidator() # Ollama handles context via prompt/options
     else:
         raise ValueError(f"Unknown method: {method}")
 
 def main():
     parser = argparse.ArgumentParser(description="Pure Abstractive Summarization (Baseline)")
-    parser.add_argument("--method", choices=["bart", "pegasus", "primera"], required=True, help="Summarization model")
+    parser.add_argument("--method", choices=["bart", "pegasus", "primera", "gemma"], required=True, help="Summarization model")
     parser.add_argument("--output-dir", default="outputs", help="Output directory")
     args = parser.parse_args()
 

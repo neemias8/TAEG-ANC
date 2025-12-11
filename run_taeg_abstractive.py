@@ -20,6 +20,7 @@ from consolidators import (
     BartConsolidator, 
     PegasusConsolidator, 
     PrimeraConsolidator,
+    GemmaOllamaConsolidator,
     BaseConsolidator
 )
 
@@ -32,12 +33,14 @@ def get_consolidator(method: str) -> BaseConsolidator:
         return PegasusConsolidator()
     elif method == "primera":
         return PrimeraConsolidator()
+    elif method == "gemma":
+        return GemmaOllamaConsolidator() # Default model defined in class
     else:
         raise ValueError(f"Unknown method: {method}")
 
 def main():
     parser = argparse.ArgumentParser(description="TAEG Abstractive Summarization")
-    parser.add_argument("--method", choices=["bart", "pegasus", "primera"], required=True, help="Summarization model")
+    parser.add_argument("--method", choices=["bart", "pegasus", "primera", "gemma"], required=True, help="Summarization model")
     parser.add_argument("--limit-events", type=int, default=None, help="Limit number of events for testing")
     parser.add_argument("--output-dir", default="outputs", help="Output directory")
     args = parser.parse_args()

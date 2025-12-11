@@ -112,3 +112,58 @@ class PrimeraConsolidator(AbstractiveConsolidator):
             
         # PRIMERA uses <doc-sep> usually, but space is fine for now
         return super().consolidate(texts)
+
+class GemmaOllamaConsolidator(BaseConsolidator):
+    """
+    Consolidator using a local Ollama instance (Gemma 3).
+    Requires Ollama running at localhost:11434.
+    """
+    def __init__(self, model_name: str = "gemma3:4b", timeout: int = 300):
+        self.model_name = model_name
+        self.api_url = "http://localhost:11434/api/generate"
+        self.timeout = timeout
+        print(f"initialized GemmaOllamaConsolidator with model={model_name}")
+
+    def consolidate(self, texts: List[str]) -> str:
+        if not texts:
+            return ""
+            
+        import requests
+        import json
+        
+        # Concatenate inputs for the prompt context
+        combined_text = "\n\n".join([f"Source {i+1}: {t}" for i, t in enumerate(texts)])
+        
+        # User requested specific prompt: CONSOLIDATE (keep details, eliminate redundancy) 
+        # instead of SUMMARIZE.
+        prompt = (
+            "You are an expert narrative consolidator. Your task is to merge the following versions "
+            "of the same event into a single, cohesive narrative.\n\n"
+            "Rules:\n"
+            "1. PRESERVE unique details from ALL sources. If one source mentions a detail the others miss, INCLUDE it.\n"
+            "2. ELIMINATE redundancy. Do not repeat the same fact twice.\n"
+            "3. MAINTAIN chronological flow and grammatical coherence.\n"
+            "4. DO NOT summarize or shorten unnecessarily. The goal is consolidation, not compression.\n\n"
+            "Input Texts:\n"
+            f"{combined_text}\n\n"
+            "Consolidated Narrative:"
+        )
+        
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.3, # Low temp for factual consistency
+                "num_ctx": 4096     # Ensure enough context window
+            }
+        }
+        
+        try:
+            response = requests.post(self.api_url, json=payload, timeout=self.timeout)
+            response.raise_for_status()
+            result = response.json()
+            return result.get("response", "").strip()
+        except Exception as e:
+            print(f"❌ Ollama Error: {e}")
+            return f"[Error generating consolidation with {self.model_name}]"

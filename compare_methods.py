@@ -41,11 +41,13 @@ def compare_methods():
         ("TAEG-BART", output_dir / "taeg_bart.txt"),
         ("TAEG-PEGASUS", output_dir / "taeg_pegasus.txt"),
         ("TAEG-PRIMERA", output_dir / "taeg_primera.txt"),
+        ("TAEG-GEMMA", output_dir / "taeg_gemma.txt"),
         
         # Abstractive Pure
         ("Pure-BART", output_dir / "pure_bart.txt"),
         ("Pure-PEGASUS", output_dir / "pure_pegasus.txt"),
         ("Pure-PRIMERA", output_dir / "pure_primera.txt"),
+        ("Pure-GEMMA", output_dir / "pure_gemma.txt"),
     ]
     
     results = []

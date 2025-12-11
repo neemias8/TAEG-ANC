@@ -9,7 +9,7 @@ Unlike traditional methods that simply concatenate texts or use extractive ranki
 This repository includes implementations for:
 - **Graph Construction**: Intelligent parsing and linking of gospel verses.
 - **Extractive Summarization**: LexRank.
-- **Abstractive Summarization**: BART, PEGASUS, and PRIMERA.
+- **Abstractive Summarization**: BART, PEGASUS, PRIMERA and GEMMA.
 
 ## The Challenge: Narrative Consolidation vs. Summarization
 
@@ -49,8 +49,9 @@ The system implements the **Strategy Pattern** for easy switching between summar
 - **BART** (`facebook/bart-large-cnn`): Excellent for coherent rewriting of short-to-medium length contexts.
 - **PEGASUS** (`google/pegasus-cnn_dailymail`): While `multi_news` is fine-tuned for MDS, we observed excessive hallucination of external news entities (e.g. "The New York Times") when applied to Biblical text. We switched to the `cnn_dailymail` checkpoint, which demonstrated significantly better robustness and fidelity to the source material for this domain.
 - **PRIMERA** (`allenai/PRIMERA`): A model designed for efficient long-document MDS usage (pyramid-based pre-training).
+- **GEMMA 3** (`google/gemma3:4b` via Ollama): A modern, instruction-tuned Large Language Model (LLM). We use it to demonstrate how a general-purpose LLM performs when guided by the temporal graph versus "raw" processing.
 
-> **Note**: All models are configured to run on **CPU**.
+> **Note**: All models are configured to run on **CPU**. Gemma runs via the **Ollama** local inference server.
 
 ## Installation
 
@@ -65,11 +66,21 @@ The system implements the **Strategy Pattern** for easy switching between summar
     pip install -r requirements.txt
     pip install -r requirements_abstractive.txt
     ```
+4.  **Install Ollama (for Gemma 3)**:
+    - Download and install [Ollama](https://ollama.com).
+    - Pull the required model:
+      ```powershell
+      ollama pull gemma3:4b
+      ```
+    - Verify setup:
+      ```powershell
+      python check_ollama.py
+      ```
 
 ## Usage
 
 ### 1. Run Complete Experiment (Recommended)
-To run all methods (LexRank, BART, PEGASUS, PRIMERA) in both TAEG-Guided and Pure modes, and generate a comparison table:
+To run all methods (LexRank, BART, PEGASUS, PRIMERA, GEMMA) in both TAEG-Guided and Pure modes, and generate a comparison table:
 
 ```powershell
 python run_complete_experiment.py
@@ -85,13 +96,13 @@ This script handles:
 
 **TAEG-Guided Summarization**:
 ```powershell
-python run_taeg_abstractive.py --method bart
-# Options: bart, pegasus, primera
+python run_taeg_abstractive.py --method gemma
+# Options: bart, pegasus, primera, gemma
 ```
 
 **Pure (Global) Summarization**:
 ```powershell
-python run_pure_abstractive.py --method pegasus
+python run_pure_abstractive.py --method gemma
 ```
 
 **Evaluation**:
@@ -133,8 +144,10 @@ The following table summarizes the performance of different methods evaluated on
 | **TAEG-BART** | 42220 | 0.6271 | 0.5163 | 0.4844 | 0.8874 | 0.2633 | 1.0000 |
 | **TAEG-PEGASUS** | 33740 | 0.5337 | 0.4286 | 0.4074 | 0.8640 | 0.2161 | 1.0000 |
 | **TAEG-PRIMERA** | 83811 | 0.8846 | 0.7085 | 0.6200 | 0.9094 | 0.4801 | 1.0000 |
+| **TAEG-GEMMA** | 101395 | 0.8883 | 0.7168 | 0.7036 | 0.8931 | 0.4926 | 1.0000 |
 | Pure-BART | 525 | 0.0113 | 0.0092 | 0.0098 | 0.8240 | 0.0033 | 0.5842 |
 | Pure-PEGASUS | 462 | 0.0110 | 0.0093 | 0.0099 | 0.8086 | 0.0032 | -0.0454 |
 | Pure-PRIMERA | 4352 | 0.0959 | 0.0783 | 0.0678 | 0.8434 | 0.0273 | 0.4471 |
+| Pure-GEMMA | 3300 | 0.0451 | 0.0167 | 0.0289 | 0.8094 | 0.0141 | 0.3919 |
 
-> **Key Takeaway**: TAEG-ANC succeeds in "zipping" the narratives together, achieving high recall (ROUGE) and perfect temporal alignment (Kendall's Tau), whereas standard abstractive models struggle to process the massive combined input, resulting in severe truncation and loss of information.
+> **Key Takeaway**: TAEG-ANC succeeds in "zipping" the narratives together. **TAEG-GEMMA** achieved the best overall performance, demonstrating that combining the structural guidance of the Temporal Graph with the linguistic capability of modern LLMs yields the highest quality consolidation. Conversely, even powerful LLMs (Pure-GEMMA) fail to capture the full scope of the narrative when attempting to summarize the entire corpus globally without structural guidance.
