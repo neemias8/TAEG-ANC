@@ -93,7 +93,7 @@ def compare_methods():
         # Format floats
         float_cols = ["ROUGE-1", "ROUGE-2", "ROUGE-L", "BERTScore", "METEOR", "Kendall Tau"]
         for col in float_cols:
-            df[col] = df[col].apply(lambda x: f"{x:.4f}")
+            df[col] = df[col].apply(lambda x: f"{x:.4f}" if x is not None else "N/A")
             
         print("\n" + "="*80)
         print("FINAL RESULTS TABLE")
