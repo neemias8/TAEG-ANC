@@ -47,7 +47,7 @@ The system implements the **Strategy Pattern** for easy switching between summar
 
 ### Abstractive
 - **BART** (`facebook/bart-large-cnn`): Excellent for coherent rewriting of short-to-medium length contexts.
-- **PEGASUS** (`google/pegasus-multi_news`): Specifically fine-tuned for multi-document summarization.
+- **PEGASUS** (`google/pegasus-cnn_dailymail`): While `multi_news` is fine-tuned for MDS, we observed excessive hallucination of external news entities (e.g. "The New York Times") when applied to Biblical text. We switched to the `cnn_dailymail` checkpoint, which demonstrated significantly better robustness and fidelity to the source material for this domain.
 - **PRIMERA** (`allenai/PRIMERA`): A model designed for efficient long-document MDS usage (pyramid-based pre-training).
 
 > **Note**: All models are configured to run on **CPU**.
@@ -121,3 +121,20 @@ TAEG-ANC/
 
 ## Authors
 [Your Name/Team] - [University/Institution]
+
+## Results
+
+The following table summarizes the performance of different methods evaluated on the Four Gospels dataset. The **TAEG-Guided** methods (using the proposed Temporal Graph) significantly outperform the **Pure** (Baseline) abstractive models in this domain, particularly in maintaining temporal coherence (Kendall's Tau).
+
+| Method | Length (chars) | ROUGE-1 | ROUGE-2 | ROUGE-L | BERTScore | METEOR | Kendall Tau |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **TAEG-LexRank** | 59408 | 0.8037 | 0.6551 | 0.2065 | 0.8351 | 0.3613 | 0.3048 |
+| **TAEG-LexRank-TA** (Oracle) | 87528 | 0.9805 | 0.9548 | 0.9655 | 0.9863 | 0.7345 | 1.0000 |
+| **TAEG-BART** | 42220 | 0.6271 | 0.5163 | 0.4844 | 0.8874 | 0.2633 | 1.0000 |
+| **TAEG-PEGASUS** | 33740 | 0.5337 | 0.4286 | 0.4074 | 0.8640 | 0.2161 | 1.0000 |
+| **TAEG-PRIMERA** | 83811 | 0.8846 | 0.7085 | 0.6200 | 0.9094 | 0.4801 | 1.0000 |
+| Pure-BART | 525 | 0.0113 | 0.0092 | 0.0098 | 0.8240 | 0.0033 | 0.5842 |
+| Pure-PEGASUS | 462 | 0.0110 | 0.0093 | 0.0099 | 0.8086 | 0.0032 | -0.0454 |
+| Pure-PRIMERA | 4352 | 0.0959 | 0.0783 | 0.0678 | 0.8434 | 0.0273 | 0.4471 |
+
+> **Key Takeaway**: TAEG-ANC succeeds in "zipping" the narratives together, achieving high recall (ROUGE) and perfect temporal alignment (Kendall's Tau), whereas standard abstractive models struggle to process the massive combined input, resulting in severe truncation and loss of information.

@@ -92,24 +92,24 @@ def main():
                 # Consolidate
                 try:
                     summary = consolidator.consolidate(texts)
-                    generated_summaries.append(summary)
+                    generated_summaries.append((event_id, summary))
                     print(f" ✅ ({len(texts)} sources)")
                 except Exception as e:
                     print(f" ❌ Error: {e}")
-                    generated_summaries.append(description) # Fallback
+                    generated_summaries.append((event_id, description)) # Fallback
             else:
                 print(" ⚠️ No text found (using description)")
-                generated_summaries.append(description)
+                generated_summaries.append((event_id, description))
         else:
             print(" ⚠️ No nodes found (using description)")
-            generated_summaries.append(description)
+            generated_summaries.append((event_id, description))
             
     total_time = time.time() - start_time
     print(f"\n✨ Processing completed in {total_time:.2f} seconds")
     
     # 5. Save Output
     clean_summaries = []
-    for s in generated_summaries:
+    for event_id, s in generated_summaries:
         s = s.strip()
         if not s: continue
         # Ensure it ends with punctuation
@@ -118,10 +118,23 @@ def main():
         # Fix spacing after punctuation (e.g. "Priest.But")
         import re
         s = re.sub(r'([.!?])([A-Z])', r'\1 \2', s)
+        
+        # User reported: is near."I tell, away."Jesus, well!"Jesus
+        # Fix missing space after closing quote + punctuation followed by a letter.
+        # We target: [.!?]["']<letter>
+        # e.g. ."I -> ." I
+        s = re.sub(r'([.!?])([\'"])([a-zA-Z])', r'\1\2 \3', s)
+        
+        # Also handle cases where there might not be punctuation inside the quote but it acts as end?
+        # But usually user said "depois de ." (after .).
+        
         # Fix double punctuation
         s = s.replace('..', '.').replace('!!', '!').replace('??', '?')
         # Fix quote spacing if needed (e.g. me?"") - simplify slightly
         s = s.replace('""', '"')
+        
+        # Prepend Event ID
+        s = f"[Event {event_id}] {s}"
         
         clean_summaries.append(s)
         

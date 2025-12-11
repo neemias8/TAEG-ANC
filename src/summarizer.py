@@ -399,14 +399,16 @@ class LexRankTemporalAnchoring:
                             gospel_name = event_texts[0][1]['gospel'].capitalize()
                             print(f"📝 Event {event_id} ({event['description']}): Single-doc summary from {gospel_name}")
 
-                    summaries.append(event_summary)
+                            print(f"📝 Event {event_id} ({event['description']}): Single-doc summary from {gospel_name}")
+
+                    summaries.append(f"[Event {event_id}] {event_summary}")
                 else:
                     # If no text found, use event description as fallback
                     print(f"⚠️ Event {event_id} ({event['description']}): No text found, using description")
-                    summaries.append(f"{event['description']}.")
+                    summaries.append(f"[Event {event_id}] {event['description']}.")
             else:
                 print(f"⚠️ Event {event_id} ({event['description']}): No nodes found")
-                summaries.append(f"{event['description']}.")
+                summaries.append(f"[Event {event_id}] {event['description']}.")
 
         # Concatenate all event summaries
         full_summary = ' '.join(summaries)

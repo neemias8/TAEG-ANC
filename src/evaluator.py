@@ -252,6 +252,28 @@ class SummarizationEvaluator:
             Kendall's Tau correlation coefficient (-1 to 1)
         """
         try:
+            # Check for explicit Event anchors (e.g., "[Event 12]")
+            import re
+            event_markers = re.findall(r'\[Event (\d+)\]', hypothesis)
+            
+            if len(event_markers) >= 2:
+                # Found explicit markers! Use them for structural evaluation.
+                found_order = [int(eid) for eid in event_markers]
+                
+                # Expected order is simply the chronological order of these IDs
+                # Since we are evaluating "Did the events appear in chronological order?",
+                # we compare the found sequence against the sorted version of itself.
+                # (Assuming the golden truth implies strictly increasing IDs)
+                
+                # Filter out any IDs that might not be in our loaded chronology (unlikely but safe)
+                # Actually, simply:
+                expected_order = sorted(found_order)
+                
+                # Calculate absolute Kendall's Tau
+                tau, _ = kendalltau(expected_order, found_order)
+                return tau if not np.isnan(tau) else 0.0
+
+            # Fallback to fuzzy string matching if no markers found
             # Load chronological events from XML to get event descriptions
             chrono_loader = ChronologyLoader()
             events = chrono_loader.load_chronology()

@@ -23,12 +23,18 @@ from consolidators import (
 
 def get_consolidator(method: str) -> BaseConsolidator:
     method = method.lower()
+    # For Pure Abstractive, we are summarizing the WHOLE set of gospels (huge input).
+    # We should allow much longer outputs than the per-event summaries.
+    # defaults were ~80-150. Here we want ~500-1000.
+    
+    LIMITS = {"max_length": 1024, "min_length": 100}
+    
     if method == "bart":
-        return BartConsolidator()
+        return BartConsolidator(**LIMITS)
     elif method == "pegasus":
-        return PegasusConsolidator()
+        return PegasusConsolidator(**LIMITS)
     elif method == "primera":
-        return PrimeraConsolidator()
+        return PrimeraConsolidator(**LIMITS) # PRIMERA can handle it
     else:
         raise ValueError(f"Unknown method: {method}")
 
